@@ -2,7 +2,10 @@
 <html lang="cs">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Stopky" />
     <title>Pracovní Stopky</title>
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -12,86 +15,131 @@
         margin: 0;
         padding: 0;
         box-sizing: border-box;
+        -webkit-tap-highlight-color: transparent;
+        user-select: none;
+      }
+
+      html, body {
+        height: 100%;
+        overflow: hidden;
       }
 
       body {
-        font-family: 'Segoe UI', sans-serif;
-        background: #1a1a2e;
+        font-family: -apple-system, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+        background: #0f0f1a;
         display: flex;
+        flex-direction: column;
         justify-content: center;
         align-items: center;
         min-height: 100vh;
+        min-height: -webkit-fill-available;
       }
 
       .app {
-        background: #16213e;
-        border-radius: 24px;
-        padding: 48px 64px;
-        text-align: center;
-        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        padding: 40px 20px;
+        gap: 0;
       }
 
       h1 {
-        color: #e0e0e0;
-        font-size: 1.2rem;
-        letter-spacing: 4px;
+        color: #ffffff;
+        font-size: clamp(1rem, 3vw, 1.4rem);
+        font-weight: 300;
+        letter-spacing: 6px;
         text-transform: uppercase;
-        margin-bottom: 40px;
-        opacity: 0.7;
+        margin-bottom: clamp(40px, 8vh, 80px);
+        opacity: 0.5;
       }
 
       .display {
-        font-size: 5rem;
-        font-weight: 700;
-        color: #00d4ff;
+        font-size: clamp(5rem, 18vw, 11rem);
+        font-weight: 200;
+        color: #ffffff;
         letter-spacing: 4px;
         font-variant-numeric: tabular-nums;
-        margin-bottom: 16px;
+        line-height: 1;
+        margin-bottom: 12px;
       }
 
       .milliseconds {
-        font-size: 1.8rem;
-        color: #00d4ff;
-        opacity: 0.5;
-        margin-bottom: 48px;
-        letter-spacing: 2px;
+        font-size: clamp(1.5rem, 5vw, 3.5rem);
+        color: #ffffff;
+        opacity: 0.3;
+        font-weight: 200;
+        margin-bottom: clamp(40px, 8vh, 80px);
+        letter-spacing: 4px;
+        font-variant-numeric: tabular-nums;
       }
 
       .status {
-        font-size: 0.85rem;
-        letter-spacing: 3px;
+        font-size: clamp(0.75rem, 2vw, 1rem);
+        letter-spacing: 4px;
         text-transform: uppercase;
-        margin-bottom: 40px;
-        height: 20px;
+        font-weight: 400;
+        margin-bottom: clamp(40px, 8vh, 80px);
+        height: 24px;
+        transition: color 0.3s;
       }
 
-      .status.running { color: #00ff88; }
-      .status.paused  { color: #ffaa00; }
-      .status.stopped { color: #555; }
+      .status.running { color: #30d158; }
+      .status.paused  { color: #ff9f0a; }
+      .status.stopped { color: #3a3a4a; }
 
       .buttons {
         display: flex;
-        gap: 16px;
+        gap: clamp(16px, 4vw, 40px);
+        justify-content: center;
+        align-items: center;
+      }
+
+      .btn-circle {
+        width: clamp(80px, 18vw, 140px);
+        height: clamp(80px, 18vw, 140px);
+        border: none;
+        border-radius: 50%;
+        font-size: clamp(0.9rem, 2.5vw, 1.3rem);
+        font-weight: 500;
+        cursor: pointer;
+        letter-spacing: 1px;
+        transition: transform 0.15s, filter 0.15s;
+        display: flex;
+        align-items: center;
         justify-content: center;
       }
 
-      button {
-        padding: 14px 32px;
-        border: none;
-        border-radius: 50px;
-        font-size: 1rem;
-        font-weight: 600;
-        cursor: pointer;
-        letter-spacing: 1px;
-        transition: transform 0.1s, opacity 0.2s;
+      .btn-circle:active {
+        transform: scale(0.92);
+        filter: brightness(0.85);
       }
 
-      button:active { transform: scale(0.96); }
+      .btn-start  { background: #30d158; color: #000; }
+      .btn-pause  { background: #ff9f0a; color: #000; }
+      .btn-reset  {
+        background: #1c1c2e;
+        color: #8e8e9a;
+        border: 2px solid #2a2a3a;
+      }
 
-      .btn-start  { background: #00ff88; color: #0a0a0a; }
-      .btn-pause  { background: #ffaa00; color: #0a0a0a; }
-      .btn-reset  { background: #2a2a4a; color: #aaa; }
-      .btn-reset:hover { background: #3a3a5a; color: #fff; }
+      .progress-ring {
+        position: fixed;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        pointer-events: none;
+        opacity: 0.06;
+      }
+
+      .tip {
+        position: fixed;
+        bottom: 24px;
+        font-size: clamp(0.65rem, 1.5vw, 0.8rem);
+        color: #3a3a4a;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+      }
     </style>
   </head>
   <body>
@@ -142,22 +190,27 @@
         return (
           <div className="app">
             <h1>Pracovní Stopky</h1>
+
             <div className="display">
               {pad(hours)}:{pad(minutes)}:{pad(seconds)}
             </div>
             <div className="milliseconds">.{pad(millis)}</div>
+
             <div className={`status ${status}`}>{statusText}</div>
+
             <div className="buttons">
               <button
-                className={running ? 'btn-pause' : 'btn-start'}
+                className={`btn-circle ${running ? 'btn-pause' : 'btn-start'}`}
                 onClick={handleStartPause}
               >
                 {running ? 'Pauza' : 'Start'}
               </button>
-              <button className="btn-reset" onClick={handleReset}>
+              <button className="btn-circle btn-reset" onClick={handleReset}>
                 Reset
               </button>
             </div>
+
+            <div className="tip">Přidej na plochu pro plnou obrazovku</div>
           </div>
         );
       }
