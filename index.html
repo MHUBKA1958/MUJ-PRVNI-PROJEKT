@@ -23,16 +23,13 @@
         transition: background 0.5s;
       }
       body.alarm { background: #2a0000; }
-
       .app { display:flex; flex-direction:column; align-items:center; width:100%; padding:32px 20px; }
-
       h1 {
         color:#fff; opacity:0.35;
         font-size: clamp(0.85rem, 2.5vw, 1.1rem);
         font-weight:300; letter-spacing:6px; text-transform:uppercase;
         margin-bottom: clamp(28px, 6vh, 60px);
       }
-
       .display {
         font-size: clamp(4.5rem, 17vw, 10rem);
         font-weight:200; color:#fff; letter-spacing:4px;
@@ -40,14 +37,12 @@
         margin-bottom:8px; transition:color 0.4s;
       }
       .display.urgent { color:#ff453a; }
-
       .centis {
         font-size: clamp(1.2rem, 4vw, 2.8rem);
         color:#fff; opacity:0.25; font-weight:200;
         letter-spacing:4px; font-variant-numeric:tabular-nums;
         margin-bottom: clamp(20px, 4vh, 40px);
       }
-
       .status {
         font-size: clamp(0.7rem, 1.8vw, 0.9rem);
         letter-spacing:4px; text-transform:uppercase; font-weight:400;
@@ -57,7 +52,6 @@
       .status.paused  { color:#ff9f0a; }
       .status.idle    { color:#3a3a4a; }
       .status.done    { color:#ff453a; }
-
       .limit-row {
         display:flex; align-items:center; gap:10px;
         margin-bottom: clamp(20px, 4vh, 40px);
@@ -72,7 +66,6 @@
       }
       .num-input:focus { outline:none; border-color:#30d158; }
       .sep { color:#444; font-size:clamp(1.1rem,2.5vw,1.4rem); }
-
       .buttons { display:flex; gap:clamp(14px,4vw,36px); align-items:center; }
       .btn {
         width:clamp(76px,17vw,130px); height:clamp(76px,17vw,130px);
@@ -85,20 +78,19 @@
       .btn-start { background:#30d158; color:#000; }
       .btn-pause { background:#ff9f0a; color:#000; }
       .btn-reset { background:#1c1c2e; color:#888; border:2px solid #2a2a3a; }
-
       .alarm-bar {
         position:fixed; top:0; left:0; right:0;
         background:#ff453a; color:#fff; text-align:center;
         padding:18px; font-size:clamp(0.95rem,2.5vw,1.3rem);
         font-weight:600; letter-spacing:2px; text-transform:uppercase;
-        animation:blink 1s infinite;
+        animation:blink 1s infinite; z-index:10;
       }
       @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.55} }
-
       .tip {
         position:fixed; bottom:20px;
         font-size:clamp(0.58rem,1.3vw,0.72rem);
-        color:#222; letter-spacing:2px; text-transform:uppercase;
+        color:#2a2a3a; letter-spacing:2px; text-transform:uppercase;
+        text-align:center; padding:0 16px;
       }
     </style>
   </head>
@@ -110,6 +102,8 @@
       var useEffect = React.useEffect;
       var useRef = React.useRef;
 
+      var LS_KEY = 'stopky_endTime';
+
       function pad(n) { return String(Math.floor(n)).padStart(2,'0'); }
 
       function beep(ctx) {
@@ -120,11 +114,24 @@
           o.type = 'sine';
           o.frequency.setValueAtTime(880, ctx.currentTime + t);
           o.frequency.setValueAtTime(660, ctx.currentTime + t + 0.15);
-          g.gain.setValueAtTime(0.5, ctx.currentTime + t);
+          g.gain.setValueAtTime(0.6, ctx.currentTime + t);
           g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.38);
           o.start(ctx.currentTime + t);
           o.stop(ctx.currentTime + t + 0.38);
         });
+      }
+
+      function startSilentLoop(ctx) {
+        var buf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+        var src = ctx.createBufferSource();
+        src.buffer = buf;
+        src.loop = true;
+        var gain = ctx.createGain();
+        gain.gain.value = 0.001;
+        src.connect(gain);
+        gain.connect(ctx.destination);
+        src.start(0);
+        return src;
       }
 
       function App() {
@@ -135,21 +142,35 @@
         var _done = useState(false); var done = _done[0]; var setDone = _done[1];
 
         var endTimeRef = useRef(null);
-        var audioRef = useRef(null);
-        var firedRef = useRef(false);
-        var tickRef = useRef(null);
+        var audioRef   = useRef(null);
+        var silentRef  = useRef(null);
+        var firedRef   = useRef(false);
+        var tickRef    = useRef(null);
 
-        function totalMs() {
-          var h = parseInt(limitH) || 0;
-          var m = parseInt(limitM) || 0;
-          return (h * 3600 + m * 60) * 1000;
-        }
+        useEffect(function() {
+          var saved = localStorage.getItem(LS_KEY);
+          if (!saved) return;
+          var endTime = parseInt(saved);
+          var left = endTime - Date.now();
+          if (left > 0) {
+            endTimeRef.current = endTime;
+            setRemaining(left);
+            setRunning(true);
+          } else {
+            localStorage.removeItem(LS_KEY);
+            setRemaining(0);
+            setDone(true);
+            document.body.classList.add('alarm');
+          }
+        }, []);
 
         function fireAlarm() {
           if (firedRef.current) return;
           firedRef.current = true;
+          localStorage.removeItem(LS_KEY);
           document.body.classList.add('alarm');
           if (audioRef.current) beep(audioRef.current);
+          if (silentRef.current) { try { silentRef.current.stop(); } catch(e){} silentRef.current = null; }
           if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
             new Notification('Pracovní Stopky', { body: 'Čas vypršel! Čas si odpočinout.' });
           }
@@ -159,9 +180,7 @@
           var left = endTimeRef.current - Date.now();
           if (left <= 0) {
             clearInterval(tickRef.current);
-            setRemaining(0);
-            setRunning(false);
-            setDone(true);
+            setRemaining(0); setRunning(false); setDone(true);
             fireAlarm();
           } else {
             setRemaining(left);
@@ -170,7 +189,7 @@
 
         useEffect(function() {
           if (running) {
-            tickRef.current = setInterval(tick, 100);
+            tickRef.current = setInterval(tick, 250);
           } else {
             clearInterval(tickRef.current);
           }
@@ -179,7 +198,8 @@
 
         useEffect(function() {
           function onVisible() {
-            if (!running || !endTimeRef.current) return;
+            if (document.visibilityState !== 'visible') return;
+            if (!endTimeRef.current) return;
             var left = endTimeRef.current - Date.now();
             if (left <= 0) {
               clearInterval(tickRef.current);
@@ -190,35 +210,52 @@
             }
           }
           document.addEventListener('visibilitychange', onVisible);
-          return function() { document.removeEventListener('visibilitychange', onVisible); };
-        }, [running]);
+          window.addEventListener('focus', onVisible);
+          return function() {
+            document.removeEventListener('visibilitychange', onVisible);
+            window.removeEventListener('focus', onVisible);
+          };
+        }, []);
 
         function handleStart() {
           if (!audioRef.current) {
             audioRef.current = new (window.AudioContext || window.webkitAudioContext)();
           }
+          if (!silentRef.current) {
+            silentRef.current = startSilentLoop(audioRef.current);
+          }
           if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
             Notification.requestPermission();
           }
-          var ms = remaining !== null ? remaining : totalMs();
+          var h = parseInt(limitH) || 0;
+          var m = parseInt(limitM) || 0;
+          var ms = remaining !== null ? remaining : (h * 3600 + m * 60) * 1000;
           if (ms <= 0) return;
-          endTimeRef.current = Date.now() + ms;
+          var endTime = Date.now() + ms;
+          endTimeRef.current = endTime;
+          localStorage.setItem(LS_KEY, endTime.toString());
           setRemaining(ms);
           firedRef.current = false;
           setDone(false);
           setRunning(true);
         }
 
-        function handlePause() { setRunning(false); }
+        function handlePause() {
+          setRunning(false);
+          if (silentRef.current) { try { silentRef.current.stop(); } catch(e){} silentRef.current = null; }
+          localStorage.removeItem(LS_KEY);
+        }
 
         function handleReset() {
           clearInterval(tickRef.current);
           setRunning(false); setDone(false); setRemaining(null);
           endTimeRef.current = null; firedRef.current = false;
+          if (silentRef.current) { try { silentRef.current.stop(); } catch(e){} silentRef.current = null; }
+          localStorage.removeItem(LS_KEY);
           document.body.classList.remove('alarm');
         }
 
-        var disp = remaining !== null ? remaining : totalMs();
+        var disp = remaining !== null ? remaining : (((parseInt(limitH)||0)*3600 + (parseInt(limitM)||0)*60)*1000);
         var hh = Math.floor(disp / 3600000);
         var mm = Math.floor((disp % 3600000) / 60000);
         var ss = Math.floor((disp % 60000) / 1000);
@@ -230,17 +267,13 @@
 
         return React.createElement(React.Fragment, null,
           done && React.createElement('div', {className:'alarm-bar'}, 'Čas vypršel! Jdi si odpočinout.'),
-
           React.createElement('div', {className:'app'},
             React.createElement('h1', null, 'Pracovní Stopky'),
-
             React.createElement('div', {className: urgent ? 'display urgent' : 'display'},
               pad(hh) + ':' + pad(mm) + ':' + pad(ss)
             ),
             React.createElement('div', {className:'centis'}, '.' + pad(cs)),
-
             React.createElement('div', {className:'status ' + stCls}, stTxt),
-
             (!running && remaining === null) && React.createElement('div', {className:'limit-row'},
               React.createElement('span', {className:'limit-label'}, 'Limit'),
               React.createElement('input', {
@@ -254,18 +287,17 @@
               }),
               React.createElement('span', {className:'sep'}, 'm')
             ),
-
             React.createElement('div', {className:'buttons'},
               !done && React.createElement('button', {
                 className: 'btn ' + (running ? 'btn-pause' : 'btn-start'),
                 onClick: running ? handlePause : handleStart
               }, running ? 'Pauza' : 'Start'),
-
               React.createElement('button', {className:'btn btn-reset', onClick:handleReset}, 'Reset')
             )
           ),
-
-          React.createElement('div', {className:'tip'}, 'Přidej na plochu · povol notifikace')
+          React.createElement('div', {className:'tip'},
+            running ? 'Aplikace běží na pozadí · zvuk musí být zapnutý' : 'Přidej na plochu · povol notifikace'
+          )
         );
       }
 
